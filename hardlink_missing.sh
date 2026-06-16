@@ -5,7 +5,27 @@ progress="$3"
 hash="$4"
 
 # ==========================================
-# 1. ATOMIC BLOCK LOGGING (Fixes Overlaps!)
+# 0. USER CONFIGURATION
+# ==========================================
+# 1. Where should the script search for missing files? (Max depth 6)
+SEARCH_DIR="/mnt/library/torrents/complete"
+
+# 2. How should the script connect to your qBittorrent WebUI?
+# Default to a standard single-instance setup:
+qbit_url="http://localhost:8080" 
+
+# [ADVANCED] Dynamic Multi-Instance Routing (The Author's Setup):
+# My setup extracts "qbit-X" from the save_path and dynamically routes to http://qbit-1:9001, etc.
+# If the script detects "qbit-" in the path, it will OVERRIDE the default url above.
+if echo "$save_path" | grep -q 'qbit-[0-9]*'; then
+  instance=$(echo "$save_path" | grep -o 'qbit-[0-9]*' | head -n 1)
+  num=$(echo "$instance" | sed 's/qbit-//')
+  port=$((9000 + num))
+  qbit_url="http://${instance}:${port}"
+fi
+
+# ==========================================
+# 1. ATOMIC BLOCK LOGGING
 # ==========================================
 log_file="/scripts/hardlink_$(date +%F).log"
 tmp_log=$(mktemp /tmp/hl_XXXXXX 2>/dev/null || echo "/tmp/hl_${hash}_$$.log")
@@ -14,21 +34,16 @@ cleanup() {
   # Disconnect live output to safely process the final file
   exec >/dev/null 2>&1
   if [ -f "$tmp_log" ]; then
-    # Add bottom border directly into the private temp file
     echo "============================================================" >> "$tmp_log"
     echo "" >> "$tmp_log"
-    
-    # Dump the completed file in one uninterrupted atomic system write!
     cat "$tmp_log" >> "$log_file"
     rm -f "$tmp_log"
   fi
 }
 trap cleanup EXIT HUP INT TERM
 
-# Direct all standard output/errors to the temp file
 exec > "$tmp_log" 2>&1
 
-# Add top border directly into the private temp file
 echo "============================================================"
 echo "🕒 $(date '+%Y-%m-%d %H:%M:%S')"
 echo "🎬 Target: $name"
@@ -43,14 +58,9 @@ fi
 # ==========================================
 # 3. STATE MEMORY & INTELLIGENT BRAKE
 # ==========================================
-instance=$(echo "$save_path" | grep -o 'qbit-[0-9]*' | head -n 1)
 should_start=true
 
-if [ -n "$instance" ]; then
-  num=$(echo "$instance" | sed 's/qbit-//')
-  port=$((9000 + num))
-  qbit_url="http://${instance}:${port}"
-  
+if [ -n "$qbit_url" ]; then
   initial_state=$(curl -s -m 5 "$qbit_url/api/v2/torrents/info?hashes=$hash" | grep -o '"state":"[^"]*"' | head -n 1 | cut -d '"' -f 4)
   echo "🧠 Initial qBittorrent state: $initial_state"
   
@@ -68,10 +78,10 @@ fi
 mkdir -p "$save_path"
 
 # ==========================================
-# 4. LIGHTNING-FAST SEARCH (Max depth: 6)
+# 4. LIGHTNING-FAST SEARCH
 # ==========================================
 echo "🔍 Fast-searching HDD for source files..."
-source_path=$(find /mnt/library/torrents/complete -maxdepth 6 -name "$name" 2>/dev/null | grep -vF "$save_path" | head -n 1)
+source_path=$(find "$SEARCH_DIR" -maxdepth 6 -name "$name" 2>/dev/null | grep -vF "$save_path" | head -n 1)
 
 if [ -z "$source_path" ]; then
   echo "❌ ERROR: Could not find this file/folder anywhere."
@@ -101,7 +111,7 @@ fi
 # ==========================================
 # 6. API INJECTION & INTELLIGENT RESUME
 # ==========================================
-if [ -n "$instance" ]; then
+if [ -n "$qbit_url" ]; then
   
   if [ "$progress" = "0" ] || [ "$progress" = "0.00" ] || [ "$progress" = "0.0" ]; then
     echo "⚠️ Torrent at 0%. Initiating API Path Injection..."
@@ -143,7 +153,7 @@ for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
   sleep 5
 done
 
-# 2. Main Monitoring Loop (Timeout bumped to 12 HOURS for massive 20+ torrent queues)
+# 2. Main Monitoring Loop (Timeout bumped to 12 HOURS for massive queues)
 count=0
 fail_count=0
 
@@ -221,5 +231,5 @@ EOF_WATCHER
   fi
 
 else
-  echo "🚨 AUTOMATION SKIPPED: Could not extract instance name."
+  echo "🚨 AUTOMATION SKIPPED: Could not establish qBittorrent URL."
 fi
