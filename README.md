@@ -13,3 +13,8 @@ An enterprise-grade, self-healing bash script designed to act as an automated sa
 
 ### 🚀 Usage
 This script is designed to be triggered automatically by `qui` (or similar monitoring tools) whenever a torrent enters the `missingFiles` state.
+
+---
+
+### 🤝 Acknowledgments & AI Disclosure
+**Transparency Note:** The architecture, edge-case logic, and real-world stress testing (handling multi-tracker cross-seeds, API lockups, and heavy REMUX disk queues) were developed by a human who was tired of dealing with missing file errors. The bash syntax, atomic logging, and underlying code generation were written with the assistance of an LLM.
