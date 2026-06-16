@@ -1,0 +1,24 @@
+{
+  "name": "Fix Missing Files",
+  "trackerPattern": "*",
+  "trackerDomains": [
+    "*"
+  ],
+  "conditions": {
+    "schemaVersion": "1",
+    "externalProgram": {
+      "enabled": true,
+      "programId": 2,
+      "condition": {
+        "operator": "AND",
+        "conditions": [
+          {
+            "field": "HAS_MISSING_FILES",
+            "operator": "EQUAL",
+            "value": "true"
+          }
+        ]
+      }
+    }
+  }
+}
